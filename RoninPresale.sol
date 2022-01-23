@@ -1177,7 +1177,7 @@ contract RoninPresale is Owned {
         //uint256 pTokenAmount = (_amount / mim.decimals() * pToken.decimals()) / price;
 
         // The contract should have enough Ronin tokens
-        require(pToken.balanceOf(address(this)) >= totalpTokenAmountToDistribute + pTokenAmount, "there aren't enough funds to buy more $RONIN");
+        require(pToken.balanceOf(address(this)) >= totalpTokenAmountToDistribute + pTokenAmount, "there aren't enough funds to buy more RONIN");
 
         // Update investor data
         investors[msg.sender].depositedAmount += _amount;
