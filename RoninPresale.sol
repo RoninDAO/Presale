@@ -1010,7 +1010,6 @@ library SafeERC20 {
     }
 }
 
-
 abstract contract Owned {
 
     address public owner;
@@ -1050,7 +1049,7 @@ abstract contract Owned {
  * the methods to add functionality. Consider using 'super' where appropriate to concatenate
  * behavior.
  */
-contract RoninPresale is Owned {
+contract Ronin_Presale is Owned {
     using SafeERC20 for ERC20;
 
     // Timestamp for closing presale
@@ -1076,12 +1075,12 @@ contract RoninPresale is Owned {
     uint public totalpTokenAmountToDistribute;
 
     // Limits for Tiers 
-    uint256 constant public MIN_MIM_LIMIT            = 100 ether;    // Minimum MIM deposit (100 MIM)
+    uint256 constant public MIN_MIM_LIMIT            = 1 ether;    // Minimum MIM deposit (1 MIM)
     uint256 constant public MAX_MIM_LIMIT_RONIN_CLUB_MEMBERS     = 2000 ether; // Maximum MIM deposit for Ronin Club Members (2000 MIM)
     uint256 constant public MAX_MIM_LIMIT_PUBLIC     = 1500 ether; // Maximum MIM deposit for Public (1500 MIM)
 
     // Price per Tiers
-    uint public RONIN_PRICE = 5;     // 5 MIM 
+    uint private RONIN_PRICE = 10;     
 
     uint256 constant public ONE_DAY_IN_SECONDS = 24 * 60 * 60;
 
@@ -1096,8 +1095,8 @@ contract RoninPresale is Owned {
     // PUBLIC is default
     enum TierType { PUBLIC, RONIN_CLUB_MEMBERS }
 
-    // Investor detail structure, including his tier type, total amount of MIM deposited, total amount of RONIN claimed
-    // and total amount of RONIN accumulated
+    // Investor detail structure, including his tier type, total amount of MIM deposited, total amount of SRA claimed
+    // and total amount of SRA accumulated
     struct InvestorDetail {
         TierType tierType;          // Tier type
         uint256 depositedAmount;    // Total MIM deposited
@@ -1135,8 +1134,8 @@ contract RoninPresale is Owned {
         }
     }
 
-/*     function mimToRONIN(uint _amount) public view returns (uint256) {
-        return (_amount / (10 ** mim.decimals()) * (10 ** pToken.decimals())) / PRICE;
+/*     function mimToSierraForTiers3(uint _amount) public view returns (uint256) {
+        return (_amount / (10 ** mim.decimals()) * (10 ** pToken.decimals())) / PRICE_SRA_TIER_3;
     } */
 
     function decimalsMIM() public view returns (uint256) {
@@ -1177,7 +1176,7 @@ contract RoninPresale is Owned {
         //uint256 pTokenAmount = (_amount / mim.decimals() * pToken.decimals()) / price;
 
         // The contract should have enough Ronin tokens
-        require(pToken.balanceOf(address(this)) >= totalpTokenAmountToDistribute + pTokenAmount, "there aren't enough funds to buy more $RONIN");
+        require(pToken.balanceOf(address(this)) >= totalpTokenAmountToDistribute + pTokenAmount, "there aren't enough funds to buy more pToken");
 
         // Update investor data
         investors[msg.sender].depositedAmount += _amount;
@@ -1219,9 +1218,9 @@ contract RoninPresale is Owned {
     }
 
     // allows operator wallet to retrieve the pToken that won't be distributed
-    function retrieveExcessRONINToken() public {
+    function retrieveExcessRoninToken() public {
         require(msg.sender == wallet);
-        require(pToken.balanceOf(address(this)) > totalpTokenAmountToDistribute, "not enough RONIN tokens remaining");
+        require(pToken.balanceOf(address(this)) > totalpTokenAmountToDistribute, "not enough Ronin tokens remaining");
         pToken.safeTransfer(wallet, pToken.balanceOf(address(this)) - totalpTokenAmountToDistribute);
     }
 
@@ -1269,3 +1268,85 @@ contract RoninPresale is Owned {
         investors[msg.sender].depositedAmount = 0;
     }
 }
+
+pragma solidity ^0.8.0;
+
+
+/**
+ * @dev A token holder contract that will allow a beneficiary to extract the
+ * tokens after a given release time.
+ *
+ * Useful for simple vesting schedules like "advisors get all of their tokens
+ * after 1 year".
+ */
+contract TokenTimelock {
+    using SafeERC20 for IERC20;
+
+    // ERC20 basic token contract being held
+    IERC20 private immutable _token;
+
+    // beneficiary of tokens after they are released
+    address private immutable _beneficiary;
+
+    // timestamp when token release is enabled
+    uint256 private immutable _releaseTime;
+
+    /**
+     * @dev Deploys a timelock instance that is able to hold the token specified, and will only release it to
+     * `beneficiary_` when {release} is invoked after `releaseTime_`. The release time is specified as a Unix timestamp
+     * (in seconds).
+     */
+    constructor(
+        IERC20 token_,
+        address beneficiary_,
+        uint256 releaseTime_
+    ) {
+        require(releaseTime_ > block.timestamp, "TokenTimelock: release time is before current time");
+        _token = token_;
+        _beneficiary = beneficiary_;
+        _releaseTime = releaseTime_;
+    }
+
+    /**
+     * @dev Returns the token being held.
+     */
+    function token() public view virtual returns (IERC20) {
+        return _token;
+    }
+
+    /**
+     * @dev Returns the beneficiary that will receive the tokens.
+     */
+    function beneficiary() public view virtual returns (address) {
+        return _beneficiary;
+    }
+
+    /**
+     * @dev Returns the time when the tokens are released in seconds since Unix epoch (i.e. Unix timestamp).
+     */
+    function releaseTime() public view virtual returns (uint256) {
+        return _releaseTime;
+    }
+
+    /**
+     * @dev Transfers tokens held by the timelock to the beneficiary. Will only succeed if invoked after the release
+     * time.
+     */
+    function release() public virtual {
+        require(block.timestamp >= releaseTime(), "TokenTimelock: current time is before release time");
+
+        uint256 amount = token().balanceOf(address(this));
+        require(amount > 0, "TokenTimelock: no tokens to release");
+
+        token().safeTransfer(beneficiary(), amount);
+    }
+}
+
+pragma solidity ^0.8.0;
+
+contract RoninTimeLock is TokenTimelock {
+    constructor(IERC20 token, address beneficiary,uint256 releaseTime)
+    TokenTimelock(token,beneficiary,releaseTime)
+    {}
+}
+
